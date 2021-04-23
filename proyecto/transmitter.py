@@ -17,5 +17,5 @@ for frame in cam:
     message = code(frame_denoise)
     socket.send(message)
     status = socket.recv()
-    # print(status)
+    #print(status)
     
