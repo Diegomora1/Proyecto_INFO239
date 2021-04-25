@@ -73,8 +73,9 @@ def code(frame):
 
     #HUFFMANN
     
+    imh = huffmann(iml)
 
-    return iml
+    return imh
 
 
 def decode(message):
