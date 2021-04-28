@@ -4,6 +4,7 @@ from scipy.signal import medfilt
 from scipy import fftpack
 from collections import Counter
 import heapq
+import json
 
 
 Q = np.array([[16, 11, 10, 16, 24, 40, 51, 61],
@@ -52,41 +53,13 @@ def code(frame):
 
     imsize = frame.shape
     dct_matrix = np.zeros(shape=imsize)
+    tira_zigzag = np.zeros(0)
 
     for i in range(0, imsize[0], 8):
         for j in range(0, imsize[1], 8):
             dct_matrix[i:(i+8),j:(j+8)] = DCT2(frame[i:(i+8),j:(j+8)])
 
     #print(dct_matrix)
-    '''
-    #CUANTIZACION
-
-    im_dct = np.zeros(imsize)
-    #nnz = np.zeros(dct_matrix.shape)
-    if (calidad < 50):
-        S = 5000/calidad
-    else:
-        S = 200 - 2*calidad 
-    Q_dyn = np.floor((S*Q + 50) / 100)
-    Q_dyn[Q_dyn == 0] = 1
-    for i in range(0, imsize[0], 8):
-        for j in range(0, imsize[1], 8):
-            quant = np.round(dct_matrix[i:(i+8),j:(j+8)]/Q_dyn) 
-            im_dct[i:(i+8),j:(j+8)] = quant #IDCT2(quant)
-            #CONVERSION ZIG-ZAG
-            im_dct[i:(i+8),j:(j+8)] = zigzag(im_dct[i:(i+8),j:(j+8)])
-            #RLE
-            im_dct[i:(i+8),j:(j+8)] = rle(im_dct[i:(i+8),j:(j+8)], 8)
-            #nnz[i, j] = np.count_nonzero(quant)
-    print(im_dct)
-
-    #CONVERSION ZIG-ZAG
-    #imz = zigzag(im_dct)
-    #RLE
-    #iml = rle(imz, imz.size)
-
-    #HUFFMANN
-    '''
     bloques_cuantizados = np.zeros(imsize)
     #nnz = np.zeros(dct_matrix.shape)
     if (calidad < 50):
@@ -104,21 +77,33 @@ def code(frame):
             # al momento de cuantizar...
             bloques_cuantizados[i:(i+8),j:(j+8)] = quant
             #nnz[i, j] = np.count_nonzero(quant)
-
+            # reordenamos cada bloque de 8x8 en tiras 
+            zz = zigzag (quant)
+            tira_zigzag = np.append(tira_zigzag, zz)
+            #print(tira_zigzag.shape)
+            # Aplicamos Run Length encoding (RLE) a cada tira 
+            # tira_rle = rle(tira_zigzag, tira_zigzag.size) 
+    '''
     #CONVERSION ZIG-ZAG
     for i in range(0, imsize[0], 8):
         for j in range(0, imsize[1], 8):
             # reordenamos cada bloque de 8x8 en tiras 
-            tira_zigzag = zigzag (bloques_cuantizados[i:(i+8), j:(j+8)] )
-
+            zz = zigzag (bloques_cuantizados[i:(i+8), j:(j+8)] )
+            #print(zz)
+            tira_zigzag = np.append(tira_zigzag, zz)
+            print(tira_zigzag)
+            #tira_zigzag = np.concatenate([tira_zigzag, zz])
             # Aplicamos Run Length encoding (RLE) a cada tira 
-            tira_rle = rle(tira_zigzag, tira_zigzag.size) # no estoy seguro de los parametros de
+            #tira_rle = rle(tira_zigzag, tira_zigzag.size) # no estoy seguro de los parametros de
 
             # por ultimo aplicamos la codificacion de HUFFMANN
 
             #huffmann(tira_rle)
-    
-    imh = huffmann(tira_rle)
+    '''
+    print('debug')
+    imh = huffmann(tira_zigzag)
+
+    print(type(imh))
 
     return imh
 
@@ -127,6 +112,8 @@ def decode(message):
     #
     # Reemplaza la linea 24...
     #
+    dendo = json.loads(message)
+    print(type(dendo))
     frame = np.frombuffer(bytes(memoryview(message)), dtype='uint8').reshape(480, 848)
     #
     # ...con tu implementación del bloque receptor: decodificador + transformación inversa
@@ -202,29 +189,6 @@ def zigzag(frameq):
     #print ('v:',v,', h:',h,', i:',i)
     return output
 
-
-def rle(message, n):
-    encoded_message = np.zeros(0)
-    i = 0
-
-    while (i <= n-1):
-        count = 1
-        ch = message[i]
-        j = i
-        while (j < n-1):
-            if (message[j] == message[j+1]):
-                count = count+1
-                j = j+1
-            else:
-                break
-        #encoded_message=encoded_message+str(count)+ch
-        encoded_message = np.r_[encoded_message, [count, ch]]
-        i = j+1
-    #
-    #while (encoded_message.size)
-    #
-    return encoded_message
-    
 def huffmann (tira):
     # Implemetación adaptada de https://rosettacode.org/wiki/Huffman_coding#Python
     
@@ -250,7 +214,13 @@ def huffmann (tira):
     for valor in tira:
         #tira_codificada += dendograma[valor]
         tira_codificada = np.r_[tira_codificada, [dendograma[valor]]]
+    print('hola')
+    print(type(tira_codificada))
+    print(type(dendograma))
 
-    return tira_codificada
+    data_string_dendo = json.dumps(dendograma)
+    tupla = (tira_codificada, data_string_dendo)
+
+    return tupla
 
     #display(texto_codificado[:1000])

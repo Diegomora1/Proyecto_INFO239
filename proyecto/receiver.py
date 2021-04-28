@@ -11,8 +11,8 @@ socket.bind(f"tcp://*:{port}")
 
 i=0
 
-while i < 1:
-    i=i+1
+while True:
+    #i=i+1
     message = socket.recv()
     frame = decode(message)
     cv.imshow("Torres del paine", frame)
