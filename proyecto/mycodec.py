@@ -30,18 +30,25 @@ def denoise(frame):
     
     return frame
 
+
+
 def code(frame):
     #
     # Implementa en esta función el bloque transmisor: Transformación + Cuantización + Codificación de fuente
     #
     #framec = cv2.cvtColor(frame, cv2.COLOR_RGB2YCrCb)[:, :, 0]
 
+
+    
     calidad = 80 # porcentaje
+    imsize = frame.shape
+    dct_matrix = np.zeros(shape=imsize)
+    
 
     #TRANSFORMACION DCT
 
     DCT2 = lambda g, norm='ortho': fftpack.dct( fftpack.dct(g, axis=0, norm=norm), axis=1, norm=norm)
-    IDCT2 = lambda G, norm='ortho': fftpack.idct( fftpack.idct(G, axis=0, norm=norm), axis=1, norm=norm)
+    #IDCT2 = lambda G, norm='ortho': fftpack.idct( fftpack.idct(G, axis=0, norm=norm), axis=1, norm=norm)
 
     imsize = frame.shape
     dct_matrix = np.zeros(shape=imsize)
@@ -50,6 +57,8 @@ def code(frame):
         for j in range(0, imsize[1], 8):
             dct_matrix[i:(i+8),j:(j+8)] = DCT2(frame[i:(i+8),j:(j+8)])
 
+    #print(dct_matrix)
+    '''
     #CUANTIZACION
 
     im_dct = np.zeros(imsize)
@@ -63,17 +72,53 @@ def code(frame):
     for i in range(0, imsize[0], 8):
         for j in range(0, imsize[1], 8):
             quant = np.round(dct_matrix[i:(i+8),j:(j+8)]/Q_dyn) 
-            im_dct[i:(i+8),j:(j+8)] = IDCT2(quant)
+            im_dct[i:(i+8),j:(j+8)] = quant #IDCT2(quant)
+            #CONVERSION ZIG-ZAG
+            im_dct[i:(i+8),j:(j+8)] = zigzag(im_dct[i:(i+8),j:(j+8)])
+            #RLE
+            im_dct[i:(i+8),j:(j+8)] = rle(im_dct[i:(i+8),j:(j+8)], 8)
+            #nnz[i, j] = np.count_nonzero(quant)
+    print(im_dct)
+
+    #CONVERSION ZIG-ZAG
+    #imz = zigzag(im_dct)
+    #RLE
+    #iml = rle(imz, imz.size)
+
+    #HUFFMANN
+    '''
+    bloques_cuantizados = np.zeros(imsize)
+    #nnz = np.zeros(dct_matrix.shape)
+    if (calidad < 50):
+        S = 5000/calidad
+    else:
+        S = 200 - 2*calidad 
+    Q_dyn = np.floor((S*Q + 50) / 100)
+    Q_dyn[Q_dyn == 0] = 1
+    #recorremos la imagen en bloques de  8x8
+    for i in range(0, imsize[0], 8):
+        for j in range(0, imsize[1], 8):
+            quant = np.round(dct_matrix[i:(i+8),j:(j+8)]/Q_dyn) 
+            #bloques_cuantizados[i:(i+8),j:(j+8)] = IDCT2(quant)
+            # creo que todavia no es necesario aplicar la transformada inversa, el profe la aplica para mostrar diferencias
+            # al momento de cuantizar...
+            bloques_cuantizados[i:(i+8),j:(j+8)] = quant
             #nnz[i, j] = np.count_nonzero(quant)
 
     #CONVERSION ZIG-ZAG
-    imz = zigzag(im_dct)
-    #RLE
-    iml = rle(imz, imz.size)
+    for i in range(0, imsize[0], 8):
+        for j in range(0, imsize[1], 8):
+            # reordenamos cada bloque de 8x8 en tiras 
+            tira_zigzag = zigzag (bloques_cuantizados[i:(i+8), j:(j+8)] )
 
-    #HUFFMANN
+            # Aplicamos Run Length encoding (RLE) a cada tira 
+            tira_rle = rle(tira_zigzag, tira_zigzag.size) # no estoy seguro de los parametros de
+
+            # por ultimo aplicamos la codificacion de HUFFMANN
+
+            #huffmann(tira_rle)
     
-    imh = huffmann(iml)
+    imh = huffmann(tira_rle)
 
     return imh
 
@@ -98,18 +143,20 @@ def create_mask(dims, frequency, size=10):
 def zigzag(frameq):
 
     i=0
-    h = 0,
+    h = 0
     v = 0
     vmin = 0
     hmin = 0
-    vmax = fr .shape[0]
+    vmax = frameq.shape[0]
     hmax = frameq.shape[1]
-    output = np.zeros(( vmax * hmax))
+
+    
+    output = np.zeros((vmax * hmax))
 
     while ((v < vmax) and (h < hmax)):
-    	if ((h + v) % 2) == 0:                 # going up
+        if ((h + v) % 2) == 0:                 # going up
             if (v == vmin):
-            	#print(1)
+                #print(1)
                 output[i] = frameq[v, h]        # if we got to the first line
                 if (h == hmax):
                     v = v + 1
@@ -117,40 +164,41 @@ def zigzag(frameq):
                     h = h + 1             
                 i = i + 1
             elif ((h == hmax -1 ) and (v < vmax)):   # if we got to the last column
-            	#print(2)
-            	output[i] = frameq[v, h] 
-            	v = v + 1
-            	i = i + 1
+                #print(2)
+                output[i] = frameq[v, h] 
+                v = v + 1
+                i = i + 1
             elif ((v > vmin) and (h < hmax -1 )):    # all other cases
-            	#print(3)
-            	output[i] = frameq[v, h] 
-            	v = v - 1
-            	h = h + 1
-            	i = i + 1        
+                #print(3)
+                output[i] = frameq[v, h] 
+                v = v - 1
+                h = h + 1
+                i = i + 1
+                    
         else:                                    # going down 
-        	if ((v == vmax -1) and (h <= hmax -1)):       # if we got to the last line
-        		#print(4)
-        		output[i] = frameq[v, h] 
-        		h = h + 1
-        		i = i + 1        
-        	elif (h == hmin):                  # if we got to the first column
-        		#print(5)
-        		output[i] = frameq[v, h] 
-        		if (v == vmax -1):
-        			h = h + 1
-        		else:
-        			v = v + 1
-        		i = i + 1
-        	elif ((v < vmax -1) and (h > hmin)):     # all other cases
-        		#print(6)
-        		output[i] = frameq[v, h] 
-        		v = v + 1
-        		h = h - 1
-        		i = i + 1
+            if ((v == vmax -1) and (h <= hmax -1)):       # if we got to the last line
+                #print(4)
+                output[i] = frameq[v, h] 
+                h = h + 1
+                i = i + 1        
+            elif (h == hmin):                  # if we got to the first column
+                #print(5)
+                output[i] = frameq[v, h] 
+                if (v == vmax -1):
+                    h = h + 1
+                else:
+                    v = v + 1
+                i = i + 1
+            elif ((v < vmax -1) and (h > hmin)):     # all other cases
+                #print(6)
+                output[i] = frameq[v, h] 
+                v = v + 1
+                h = h - 1
+                i = i + 1
         if ((v == vmax-1) and (h == hmax-1)):          # bottom right element
-        	#print(7)        	
-        	output[i] = frameq[v, h] 
-        	break
+            #print(7)        	
+            output[i] = frameq[v, h] 
+            break
     #print ('v:',v,', h:',h,', i:',i)
     return output
 
@@ -172,6 +220,9 @@ def rle(message, n):
         #encoded_message=encoded_message+str(count)+ch
         encoded_message = np.r_[encoded_message, [count, ch]]
         i = j+1
+    #
+    #while (encoded_message.size)
+    #
     return encoded_message
     
 def huffmann (tira):
@@ -192,7 +243,7 @@ def huffmann (tira):
     # Convertir código a diccionario
     dendograma = sorted(heapq.heappop(dendograma)[1:])
     dendograma = {simbolo : codigo for simbolo, codigo in dendograma} 
-    display(dendograma)
+    #display(dendograma)
 
     #tira_codificada = ""
     tira_codificada = np.zeros(0)
