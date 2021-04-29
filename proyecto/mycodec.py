@@ -103,6 +103,9 @@ def decode(message):
     #print(type(diccionario))
 
     decod = dehuffman(data, diccionario)
+    decod2 = rle_inverso(decod)
+
+    print(decod2)
 
     frame = np.frombuffer(bytes(memoryview(message)), dtype='uint8').reshape(480, 848)
     #
@@ -111,8 +114,6 @@ def decode(message):
     return frame
 
 def dehuffman(data, dendograma):
-
-    #dendograma = Convert(dendograma)
     #print(dendograma)
 
     dendograma_inverso =  {codigo: simbolo for simbolo, codigo in dendograma.items()}
@@ -128,7 +129,6 @@ def dehuffman(data, dendograma):
             codigo = ""
 
     floats = [float(x) for x in texto.split()]
-    print(floats)
 
     return floats
 
@@ -206,11 +206,11 @@ def rle_inverso(input):
     output = []
     j = 0
     n = len(input)
-    for i in range(0,n):
-        if(input[i] % 2 == 0):
-            for k in range(j,j+input[i]):
-                output[j] = input[i+1]
-                j = j + 1
+    input = list(map(int, input))
+    for i in range(0,n,2):
+        for k in range(j,j + input[i]):
+            output.append(input[i+1])
+            j = j + 1
     return output
 
 def zigzag2(frameq):
