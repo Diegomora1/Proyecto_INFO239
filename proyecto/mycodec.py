@@ -49,7 +49,7 @@ def code(frame):
 
     imsize = frame.shape
     dct_matrix = np.zeros(shape=imsize)
-    tira_zigzag = np.zeros(0)
+    tira_zigzag = [] #np.zeros(0)
 
     for i in range(0, imsize[0], 8):
         for j in range(0, imsize[1], 8):
@@ -74,7 +74,7 @@ def code(frame):
             #bloques_cuantizados[i:(i+8),j:(j+8)] = quant
             # reordenamos cada bloque de 8x8 en tiras con el patron zig zag
             zz = zigzag2 (quant)
-            tira_zigzag = np.append(tira_zigzag, zz)
+            tira_zigzag += zz #np.append(tira_zigzag, zz)
 
     #print('debug')
     # Aplicamos Run Length encoding (RLE) a cada tira 
@@ -96,16 +96,41 @@ def decode(message):
     # Reemplaza la linea 24...
     #
     dendo = json.loads(message)
-    print(type(dendo))
+    data = dendo[1]
+    diccionario = dendo[0]
+    #print(diccionario)
 
-    data = dendo[0]
-    diccionario = dendo[1]
+    #print(type(diccionario))
+
+    decod = dehuffman(data, diccionario)
 
     frame = np.frombuffer(bytes(memoryview(message)), dtype='uint8').reshape(480, 848)
     #
     # ...con tu implementación del bloque receptor: decodificador + transformación inversa
     #    
     return frame
+
+def dehuffman(data, dendograma):
+
+    #dendograma = Convert(dendograma)
+    #print(dendograma)
+
+    dendograma_inverso =  {codigo: simbolo for simbolo, codigo in dendograma.items()}
+
+    #print(dendograma_inverso)
+
+    codigo = ""
+    texto = ""
+    for bit in data:
+        codigo += bit
+        if codigo in dendograma_inverso:
+            texto += dendograma_inverso[codigo]
+            codigo = ""
+
+    floats = [float(x) for x in texto.split()]
+    print(floats)
+
+    return floats
 
 
 def huffmann (tira):
@@ -155,7 +180,7 @@ def create_mask(dims, frequency, size=10):
 
 def rle(message, n):
     #encoded_message = np.zeros(0)
-    encoded_message = []
+    encoded_message = ""
     i = 0
     while (i <= n-1):
         count = 1
@@ -168,10 +193,11 @@ def rle(message, n):
             else:
                 break
         #encoded_message = np.r_[encoded_message, [count, ch]]
-        encoded_message += [count,ch]
+        encoded_message += str(count) + ' ' + str(ch) + ' '
         i = j+1
     
-    encoded_message = np.array(encoded_message)
+    #encoded_message = np.array(encoded_message)
+    #print(encoded_message)
 
     return encoded_message
 
@@ -205,6 +231,6 @@ def zigzag2(frameq):
 
     for x in solution:
         solution2 += x
-    solution2 = np.array(solution2)
+    #solution2 = np.array(solution2)
 
     return solution2
