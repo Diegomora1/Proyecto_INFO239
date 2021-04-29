@@ -21,15 +21,15 @@ def denoise(frame):
     # Eliminacion ruido 1 (Impulsivo)
     
     #Filtro mediana
-    #frame1 = medfilt(frame, 5)
+    frame1 = medfilt(frame, 5)
     
     # Eliminacion ruido 2 (Periódico)
-    #S_img = fftpack.fftshift(fftpack.fft2(frame1))
-    #espectro_filtrado = S_img*create_mask(S_img.shape, 0.03)   
+    S_img = fftpack.fftshift(fftpack.fft2(frame1))
+    espectro_filtrado = S_img*create_mask(S_img.shape, 0.03)   
     # Reconstrucción
-    #framef = np.uint8(fftpack.ifft2(fftpack.ifftshift(espectro_filtrado)))
+    framef = np.uint8(fftpack.ifft2(fftpack.ifftshift(espectro_filtrado)))
     
-    return frame
+    return framef
 
 
 
@@ -80,6 +80,8 @@ def code(frame):
     # Aplicamos Run Length encoding (RLE) a cada tira 
     img_rle = rle(tira_zigzag, imsize[0]*imsize[1])
 
+    #print(len(img_rle))
+
     #print(img_rle, img_rle.size)
 
     imh = huffmann(img_rle)
@@ -103,15 +105,38 @@ def decode(message):
     #print(type(diccionario))
 
     decod = dehuffman(data, diccionario)
+
+    #print(len(decod))
+    
     decod2 = rle_inverso(decod)
 
-    print(decod2)
+    #print(decod2)
+    #decod3 = inverse_zigzag(decod2)
 
-    frame = np.frombuffer(bytes(memoryview(message)), dtype='uint8').reshape(480, 848)
+    imsize = (480, 848)
+
+    #print(imsize)
+
+    IDCT2 = lambda G, norm='ortho': fftpack.idct( fftpack.idct(G, axis=0, norm=norm), axis=1, norm=norm)
+
+    frame = np.zeros(imsize)
+
+    k=0
+    for i in range(0, imsize[0], 8):
+        for j in range(0, imsize[1], 8):
+            #decod3 = inverse_zigzag(decod2[i:(i+8),j:(j+8)])
+            decod3 = inverse_zigzag(decod2[k:(k+64)])
+            #print(decod3)
+            frame[i:(i+8),j:(j+8)] = IDCT2(decod3)
+            #print(frame[i:(i+8),j:(j+8)])
+            k+=64
+    #print(frame)
+    #frame = np.frombuffer(bytes(memoryview(bloques)), dtype='uint8').reshape(480, 848)
+    #frame = np.frombuffer(bytes(memoryview(message)), dtype='uint8').reshape(480, 848)
     #
     # ...con tu implementación del bloque receptor: decodificador + transformación inversa
     #    
-    return frame
+    return frame/255
 
 def dehuffman(data, dendograma):
     #print(dendograma)
@@ -153,22 +178,13 @@ def huffmann (tira):
     #print(dendograma)
 
     #tira_codificada = ""
-    tira_codificada = [] #np.zeros(0)
+    tira_codificada = [] 
     for valor in tira:
         #tira_codificada = np.r_[tira_codificada, [dendograma[valor]]]
         tira_codificada += dendograma[valor]
-    #print('hola')
-    #tira_codificada = np.array(tira_codificada)
-    #print(type(dendograma))
 
-    dendograma_byte = dendograma #json.dumps(dendograma, indent=2).encode('utf-8')
-    #dnp = np.array(dendograma_byte)
-    #tupla = (tira_codificada, dendograma_byte)
-    #tupla2 = json.dumps(tupla)
-    #print(type(dendograma_byte))
-    #print(dendograma_byte)
-    #print(tira_codificada)
-    #envio = np.array([tira_codificada, dendograma_byte])
+    dendograma_byte = dendograma
+
     return dendograma_byte, tira_codificada
 
 def create_mask(dims, frequency, size=10):
@@ -194,6 +210,7 @@ def rle(message, n):
                 break
         #encoded_message = np.r_[encoded_message, [count, ch]]
         encoded_message += str(count) + ' ' + str(ch) + ' '
+        #encoded_message += str(count) + str(ch)
         i = j+1
     
     #encoded_message = np.array(encoded_message)
@@ -211,6 +228,7 @@ def rle_inverso(input):
         for k in range(j,j + input[i]):
             output.append(input[i+1])
             j = j + 1
+    #output = np.array(output)
     return output
 
 def zigzag2(frameq):
@@ -234,3 +252,63 @@ def zigzag2(frameq):
     #solution2 = np.array(solution2)
 
     return solution2
+
+def inverse_zigzag(input):	
+	#print input.shape
+	# initializing the variables
+	#----------------------------------
+    h = 0
+    v = 0
+    vmin = 0
+    hmin = 0
+    vmax = 8
+    hmax = 8
+    output = np.zeros((vmax, hmax))
+    i = 0
+    #----------------------------------
+    while ((v < vmax) and (h < hmax)): 
+        #print ('v:',v,', h:',h,', i:',i)   	
+        if ((h + v) % 2) == 0:                 # going up            
+            if (v == vmin):
+                #print(1)                
+                output[v, h] = input[i]        # if we got to the first line
+                if (h == hmax):
+                    v = v + 1
+                else:
+                    h = h + 1                        
+                i = i + 1
+            elif ((h == hmax -1 ) and (v < vmax)):   # if we got to the last column
+                #print(2)
+                output[v, h] = input[i] 
+                v = v + 1
+                i = i + 1
+            elif ((v > vmin) and (h < hmax -1 )):    # all other cases
+                #print(3)
+                output[v, h] = input[i] 
+                v = v - 1
+                h = h + 1
+                i = i + 1
+        else:                                    # going down
+            if ((v == vmax -1) and (h <= hmax -1)):       # if we got to the last line
+                #print(4)
+                output[v, h] = input[i] 
+                h = h + 1
+                i = i + 1
+            elif (h == hmin):                  # if we got to the first column
+                #print(5)
+                output[v, h] = input[i] 
+                if (v == vmax -1):
+                    h = h + 1
+                else:
+                    v = v + 1
+                i = i + 1                                
+            elif((v < vmax -1) and (h > hmin)):     # all other cases
+                output[v, h] = input[i] 
+                v = v + 1
+                h = h - 1
+                i = i + 1
+        if ((v == vmax-1) and (h == hmax-1)):          # bottom right element
+            #print(7)        	
+            output[v, h] = input[i] 
+            break
+    return output    
