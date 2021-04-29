@@ -45,7 +45,6 @@ def code(frame):
     #TRANSFORMACION DCT
 
     DCT2 = lambda g, norm='ortho': fftpack.dct( fftpack.dct(g, axis=0, norm=norm), axis=1, norm=norm)
-    #IDCT2 = lambda G, norm='ortho': fftpack.idct( fftpack.idct(G, axis=0, norm=norm), axis=1, norm=norm)
 
     imsize = frame.shape
     dct_matrix = np.zeros(shape=imsize)
@@ -55,9 +54,6 @@ def code(frame):
         for j in range(0, imsize[1], 8):
             dct_matrix[i:(i+8),j:(j+8)] = DCT2(frame[i:(i+8),j:(j+8)])
 
-    #print(dct_matrix)
-    #bloques_cuantizados = np.zeros(imsize)
-    #nnz = np.zeros(dct_matrix.shape)
     if (calidad < 50):
         S = 5000/calidad
     else:
@@ -68,21 +64,12 @@ def code(frame):
     for i in range(0, imsize[0], 8):
         for j in range(0, imsize[1], 8):
             quant = np.round(dct_matrix[i:(i+8),j:(j+8)]/Q_dyn) 
-            #bloques_cuantizados[i:(i+8),j:(j+8)] = IDCT2(quant)
-            # creo que todavia no es necesario aplicar la transformada inversa, el profe la aplica para mostrar diferencias
-            # al momento de cuantizar...
-            #bloques_cuantizados[i:(i+8),j:(j+8)] = quant
             # reordenamos cada bloque de 8x8 en tiras con el patron zig zag
             zz = zigzag2 (quant)
-            tira_zigzag += zz #np.append(tira_zigzag, zz)
-
+            tira_zigzag += zz
     #print('debug')
     # Aplicamos Run Length encoding (RLE) a cada tira 
     img_rle = rle(tira_zigzag, imsize[0]*imsize[1])
-
-    #print(len(img_rle))
-
-    #print(img_rle, img_rle.size)
 
     imh = huffmann(img_rle)
 
@@ -94,56 +81,40 @@ def code(frame):
 
 
 def decode(message):
-    #
-    # Reemplaza la linea 24...
-    #
     dendo = json.loads(message)
     data = dendo[1]
     diccionario = dendo[0]
-    #print(diccionario)
-
-    #print(type(diccionario))
 
     decod = dehuffman(data, diccionario)
-
-    #print(len(decod))
     
     decod2 = rle_inverso(decod)
 
-    #print(decod2)
-    #decod3 = inverse_zigzag(decod2)
-
-    imsize = (480, 848)
-
-    #print(imsize)
-
     IDCT2 = lambda G, norm='ortho': fftpack.idct( fftpack.idct(G, axis=0, norm=norm), axis=1, norm=norm)
 
-    frame = np.zeros(imsize)
+    frame = np.zeros((480,848))
+
+    calidad = 80
+    if (calidad < 50):
+        S = 5000/calidad
+    else:
+        S = 200 - 2*calidad 
+    Q_dyn = np.floor((S*Q + 50) / 100)
+    Q_dyn[Q_dyn == 0] = 1
 
     k=0
-    for i in range(0, imsize[0], 8):
-        for j in range(0, imsize[1], 8):
-            #decod3 = inverse_zigzag(decod2[i:(i+8),j:(j+8)])
+    for i in range(0, 480, 8):
+        for j in range(0, 848, 8):
             decod3 = inverse_zigzag(decod2[k:(k+64)])
-            #print(decod3)
-            frame[i:(i+8),j:(j+8)] = IDCT2(decod3)
-            #print(frame[i:(i+8),j:(j+8)])
+            decod4 = decod3 * Q_dyn
+            frame[i:(i+8),j:(j+8)] = IDCT2(decod4)
             k+=64
+
     #print(frame)
-    #frame = np.frombuffer(bytes(memoryview(bloques)), dtype='uint8').reshape(480, 848)
-    #frame = np.frombuffer(bytes(memoryview(message)), dtype='uint8').reshape(480, 848)
-    #
-    # ...con tu implementación del bloque receptor: decodificador + transformación inversa
-    #    
+
     return frame/255
 
 def dehuffman(data, dendograma):
-    #print(dendograma)
-
     dendograma_inverso =  {codigo: simbolo for simbolo, codigo in dendograma.items()}
-
-    #print(dendograma_inverso)
 
     codigo = ""
     texto = ""
@@ -161,7 +132,6 @@ def dehuffman(data, dendograma):
 def huffmann (tira):
     # Construir dendograma con las probabilidades ordenadas
     dendograma = [[frequencia/len(tira), [simbolo, ""]] for simbolo, frequencia in Counter(tira).items()]
-    #print(dendograma)
     heapq.heapify(dendograma)
     # Crear el código
     while len(dendograma) > 1:
@@ -175,7 +145,6 @@ def huffmann (tira):
     # Convertir código a diccionario
     dendograma = sorted(heapq.heappop(dendograma)[1:])
     dendograma = {simbolo : codigo for simbolo, codigo in dendograma} 
-    #print(dendograma)
 
     #tira_codificada = ""
     tira_codificada = [] 
@@ -210,12 +179,9 @@ def rle(message, n):
                 break
         #encoded_message = np.r_[encoded_message, [count, ch]]
         encoded_message += str(count) + ' ' + str(ch) + ' '
-        #encoded_message += str(count) + str(ch)
         i = j+1
     
     #encoded_message = np.array(encoded_message)
-    #print(encoded_message)
-
     return encoded_message
 
 
@@ -228,7 +194,6 @@ def rle_inverso(input):
         for k in range(j,j + input[i]):
             output.append(input[i+1])
             j = j + 1
-    #output = np.array(output)
     return output
 
 def zigzag2(frameq):
@@ -241,10 +206,8 @@ def zigzag2(frameq):
         for j in range(columns):
             sum=i+j
             if(sum%2 ==0):
-                #add at beginning
                 solution[sum].insert(0,frameq[i][j])
             else:
-                #add at end of the list
                 solution[sum].append(frameq[i][j])
 
     for x in solution:
@@ -254,8 +217,6 @@ def zigzag2(frameq):
     return solution2
 
 def inverse_zigzag(input):	
-	#print input.shape
-	# initializing the variables
 	#----------------------------------
     h = 0
     v = 0
