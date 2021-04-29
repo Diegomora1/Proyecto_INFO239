@@ -76,17 +76,19 @@ def code(frame):
             zz = zigzag2 (quant)
             tira_zigzag = np.append(tira_zigzag, zz)
 
-    print('debug')
+    #print('debug')
     # Aplicamos Run Length encoding (RLE) a cada tira 
     img_rle = rle(tira_zigzag, imsize[0]*imsize[1])
 
-    print(img_rle, img_rle.size)
+    #print(img_rle, img_rle.size)
 
     imh = huffmann(img_rle)
 
-    print(type(imh))
+    #print(type(imh))
 
-    return imh
+    imhs = json.dumps(imh, indent=2).encode('utf-8')
+
+    return imhs
 
 
 def decode(message):
@@ -95,6 +97,10 @@ def decode(message):
     #
     dendo = json.loads(message)
     print(type(dendo))
+
+    data = dendo[0]
+    diccionario = dendo[1]
+
     frame = np.frombuffer(bytes(memoryview(message)), dtype='uint8').reshape(480, 848)
     #
     # ...con tu implementación del bloque receptor: decodificador + transformación inversa
@@ -103,8 +109,6 @@ def decode(message):
 
 
 def huffmann (tira):
-    # Implemetación adaptada de https://rosettacode.org/wiki/Huffman_coding#Python
-    
     # Construir dendograma con las probabilidades ordenadas
     dendograma = [[frequencia/len(tira), [simbolo, ""]] for simbolo, frequencia in Counter(tira).items()]
     #print(dendograma)
@@ -128,14 +132,19 @@ def huffmann (tira):
     for valor in tira:
         #tira_codificada = np.r_[tira_codificada, [dendograma[valor]]]
         tira_codificada += dendograma[valor]
-    print('hola')
-    print(type(tira_codificada))
-    print(type(dendograma))
+    #print('hola')
+    #tira_codificada = np.array(tira_codificada)
+    #print(type(dendograma))
 
-    data_string_dendo = json.dumps(dendograma)
-    tupla = (tira_codificada, data_string_dendo)
-
-    return tupla
+    dendograma_byte = dendograma #json.dumps(dendograma, indent=2).encode('utf-8')
+    #dnp = np.array(dendograma_byte)
+    #tupla = (tira_codificada, dendograma_byte)
+    #tupla2 = json.dumps(tupla)
+    #print(type(dendograma_byte))
+    #print(dendograma_byte)
+    #print(tira_codificada)
+    #envio = np.array([tira_codificada, dendograma_byte])
+    return dendograma_byte, tira_codificada
 
 def create_mask(dims, frequency, size=10):
     freq_int = int(frequency*dims[0])
@@ -148,7 +157,6 @@ def rle(message, n):
     #encoded_message = np.zeros(0)
     encoded_message = []
     i = 0
-
     while (i <= n-1):
         count = 1
         ch = message[i]
