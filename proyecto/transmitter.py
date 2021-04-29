@@ -1,6 +1,7 @@
 import zmq
 from camera import CameraReader
 from mycodec import denoise, code
+import cv2 as cv
 
 port = 5555
 context = zmq.Context()

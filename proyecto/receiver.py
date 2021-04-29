@@ -12,7 +12,7 @@ socket.bind(f"tcp://*:{port}")
 
 while True:
     message = socket.recv()
-    frame = decode(message)
+    frame = decode(message)/255
     cv.imshow("Torres del paine", frame)
     cv.waitKey(10)
     socket.send(b"ready")

@@ -19,6 +19,7 @@ Q = np.array([[16, 11, 10, 16, 24, 40, 51, 61],
 
 
 def denoise(frame):
+    
     # Eliminacion ruido 1 (Impulsivo)
     
     #Filtro mediana
@@ -30,7 +31,8 @@ def denoise(frame):
     # Reconstrucción
     framef = np.uint8(fftpack.ifft2(fftpack.ifftshift(espectro_filtrado)))
     
-    return frame
+    #print(framef[0:8,0:8])
+    return framef
 
 
 
@@ -38,7 +40,6 @@ def code(frame):
     #
     # Implementa en esta función el bloque transmisor: Transformación + Cuantización + Codificación de fuente
     #
-    #framec = cv2.cvtColor(frame, cv2.COLOR_RGB2YCrCb)[:, :, 0]
     calidad = 80 # porcentaje
     imsize = frame.shape
     dct_matrix = np.zeros(shape=imsize)
@@ -73,7 +74,18 @@ def code(frame):
             # al momento de cuantizar...
             #bloques_cuantizados[i:(i+8),j:(j+8)] = quant
             # reordenamos cada bloque de 8x8 en tiras con el patron zig zag
+            
+            
+            #print(quant)
+            #print("----------------")
             zz = zigzag2 (quant)
+            #print(zz)
+            #print("----------------")
+            #zinv = inverse_zigzag(zz)
+            #print(zinv)
+            #print("----------------")
+            #waitKey(0)
+
             tira_zigzag = np.append(tira_zigzag, zz)
 
     #print('debug')
@@ -92,10 +104,11 @@ def code(frame):
 
 
 def decode(message):
-    IDCT2 = lambda G, norm='ortho': fftpack.idct( fftpack.idct(G, axis=0, norm=norm), axis=1, norm=norm)
+    IDCT2 = lambda G, norm='ortho': (fftpack.idct( fftpack.idct(G, axis=0, norm=norm), axis=1, norm=norm))
     #
     # Reemplaza la linea 24...
     #
+    idct_matrix = np.zeros((480,848))
     dendo = json.loads(message)
     #print(type(dendo))
     data = dendo[1]
@@ -111,12 +124,19 @@ def decode(message):
             frame_codif.append(dicc_inverso[codigo])
             codigo = ""
     
+    
     # RLE inverso
     frame1 = rle_inverso(frame_codif)
 
     # Zig-zag inverso
-    framef = inverse_zigzag(frame1)
+    #framef = inverse_zigzag(frame1)
 
+
+    k = 0
+    for i in range(0,480,8):
+        for j in range(0,848,8):
+            idct_matrix[i:(i+8), j:(j+8)] = inverse_zigzag(frame1[k:k+64])
+            k+=64
     # Decuantizacion y Detransformacion
     calidad = 80
     if (calidad < 50):
@@ -129,9 +149,9 @@ def decode(message):
     #recorremos la imagen en bloques de  8x8
     for i in range(0, 480, 8):
         for j in range(0, 848, 8):
-            dequant = framef[i:(i+8),j:(j+8)] * Q_dyn
+            dequant = idct_matrix[i:(i+8),j:(j+8)] * Q_dyn
             frame_dq[i:(i+8),j:(j+8)] = IDCT2(dequant)
-    print(frame_dq)
+    #print(frame_dq)
     return frame_dq
 
 
@@ -169,7 +189,7 @@ def huffmann (tira):
     #tupla2 = json.dumps(tupla)
     #print(type(dendograma_byte))
     #print(dendograma_byte)
-    #print(tira_codificada)
+
     #envio = np.array([tira_codificada, dendograma_byte])
     return dendograma_byte, tira_codificada
 
@@ -253,7 +273,6 @@ def zigzag2(frameq):
     for x in solution:
         solution2 += x
     solution2 = np.array(solution2)
-
     return solution2
 
 
@@ -266,8 +285,8 @@ def inverse_zigzag(input):
     v = 0
     vmin = 0
     hmin = 0
-    vmax = 480
-    hmax = 848
+    vmax = 8
+    hmax = 8
     output = np.zeros((vmax, hmax))
     i = 0
     #----------------------------------
