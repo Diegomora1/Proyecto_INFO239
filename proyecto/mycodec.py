@@ -17,6 +17,8 @@ Q = np.array([[16, 11, 10, 16, 24, 40, 51, 61],
               [49, 64, 78, 87, 103, 121, 120, 101],
               [72, 92, 95, 98, 112, 100, 103, 99]])
 
+calidad = 20
+
 
 def denoise(frame):
     # Eliminacion ruido 1 (Impulsivo)
@@ -26,7 +28,7 @@ def denoise(frame):
     
     # Eliminacion ruido 2 (Periódico)
     S_img = fftpack.fftshift(fftpack.fft2(frame1))
-    espectro_filtrado = S_img*create_mask(S_img.shape, 0.03)   
+    espectro_filtrado = S_img*create_mask(S_img.shape, 0.05)   
     # Reconstrucción
     framef = np.uint8(fftpack.ifft2(fftpack.ifftshift(espectro_filtrado)))
     
@@ -43,7 +45,7 @@ def code(frame):
     #PESO ORIGINAL
     print(f"Imagen original {np.prod(frame.shape)*8/1e+6:0.3f} MB")
 
-    calidad = 80 # porcentaje
+
     imsize = frame.shape
     dct_matrix = np.zeros(shape=imsize)
     
@@ -59,7 +61,7 @@ def code(frame):
         for j in range(0, imsize[1], 8):
             dct_matrix[i:(i+8),j:(j+8)] = DCT2(frame[i:(i+8),j:(j+8)])
 
-    if (calidad < 50):
+    if (calidad < 10):
         S = 5000/calidad
     else:
         S = 200 - 2*calidad 
@@ -88,7 +90,12 @@ def code(frame):
 
     #print(type(imhs))
 
-    #print(f"Peso despues de codificar {sys.getsizeof(imh)*8/1e+6:0.3f} MB")
+    #print(f"Peso despues de codificar {sys.getsizeof(imhs)/1e+6:0.3f} MB")
+    #print(imhs[0:100])
+    print(len(imhs))
+
+    #print(len(imhs.encode('utf-8')))
+
     return imhs
 
 
@@ -105,7 +112,6 @@ def decode(message):
 
     frame = np.zeros((480,848))
 
-    calidad = 80
     if (calidad < 50):
         S = 5000/calidad
     else:
