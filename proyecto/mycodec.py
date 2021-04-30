@@ -5,6 +5,7 @@ from scipy import fftpack
 from collections import Counter
 import heapq
 import json
+import sys
 
 
 Q = np.array([[16, 11, 10, 16, 24, 40, 51, 61],
@@ -38,6 +39,10 @@ def code(frame):
     # Implementa en esta función el bloque transmisor: Transformación + Cuantización + Codificación de fuente
     #
     #framec = cv2.cvtColor(frame, cv2.COLOR_RGB2YCrCb)[:, :, 0]
+
+    #PESO ORIGINAL
+    print(f"Imagen original {np.prod(frame.shape)*8/1e+6:0.3f} MB")
+
     calidad = 80 # porcentaje
     imsize = frame.shape
     dct_matrix = np.zeros(shape=imsize)
@@ -49,7 +54,7 @@ def code(frame):
     imsize = frame.shape
     dct_matrix = np.zeros(shape=imsize)
     tira_zigzag = [] #np.zeros(0)
-
+    nnz = np.zeros(dct_matrix.shape)
     for i in range(0, imsize[0], 8):
         for j in range(0, imsize[1], 8):
             dct_matrix[i:(i+8),j:(j+8)] = DCT2(frame[i:(i+8),j:(j+8)])
@@ -64,10 +69,14 @@ def code(frame):
     for i in range(0, imsize[0], 8):
         for j in range(0, imsize[1], 8):
             quant = np.round(dct_matrix[i:(i+8),j:(j+8)]/Q_dyn) 
+            nnz[i, j] = np.count_nonzero(quant)
             # reordenamos cada bloque de 8x8 en tiras con el patron zig zag
             zz = zigzag2 (quant)
             tira_zigzag += zz
-    #print('debug')
+
+    peso = np.sum(nnz)
+    print(f"80% de calidad {peso*8/1e+6:0.3f} MB")
+
     # Aplicamos Run Length encoding (RLE) a cada tira 
     img_rle = rle(tira_zigzag, imsize[0]*imsize[1])
 
@@ -77,6 +86,9 @@ def code(frame):
 
     imhs = json.dumps(imh, indent=2).encode('utf-8')
 
+    #print(type(imhs))
+
+    #print(f"Peso despues de codificar {sys.getsizeof(imh)*8/1e+6:0.3f} MB")
     return imhs
 
 
@@ -179,6 +191,7 @@ def rle(message, n):
                 break
         #encoded_message = np.r_[encoded_message, [count, ch]]
         encoded_message += str(count) + ' ' + str(ch) + ' '
+        #encoded_message += str(count) + str(ch)
         i = j+1
     
     #encoded_message = np.array(encoded_message)
