@@ -6,6 +6,7 @@ from collections import Counter
 import heapq
 import json
 import sys
+import pickle
 
 
 Q = np.array([[16, 11, 10, 16, 24, 40, 51, 61],
@@ -77,30 +78,24 @@ def code(frame):
             tira_zigzag += zz
 
     peso = np.sum(nnz)
-    print(f"80% de calidad {peso*8/1e+6:0.3f} MB")
+    #print(f"80% de calidad {peso*8/1e+6:0.3f} MB")
 
     # Aplicamos Run Length encoding (RLE) a cada tira 
     img_rle = rle(tira_zigzag, imsize[0]*imsize[1])
 
     imh = huffmann(img_rle)
 
-    #print(type(imh))
-
-    imhs = json.dumps(imh, indent=2).encode('utf-8')
-
-    #print(type(imhs))
+    #imhs = json.dumps(imh, indent=2).encode('utf-8')
+    imhs = pickle.dumps(imh, protocol=pickle.HIGHEST_PROTOCOL)
 
     #print(f"Peso despues de codificar {sys.getsizeof(imhs)/1e+6:0.3f} MB")
-    #print(imhs[0:100])
-    print(len(imhs))
-
-    #print(len(imhs.encode('utf-8')))
 
     return imhs
 
 
 def decode(message):
-    dendo = json.loads(message)
+    #dendo = json.loads(message)
+    dendo = pickle.loads(message)
     data = dendo[1]
     diccionario = dendo[0]
 
@@ -132,15 +127,30 @@ def decode(message):
     return frame/255
 
 def dehuffman(data, dendograma):
+
+
     dendograma_inverso =  {codigo: simbolo for simbolo, codigo in dendograma.items()}
+
+    #print(type(dendograma))
+
+    #print(data[0:100])
+    #pasamos de bytearray a bits
+    data2 = ""
+    for k in range (0, len(data)):
+        data2 += "{0:08b}".format(data[k])
+    
+    #tenemos que eliminar lo que agregamos con el padding
+
 
     codigo = ""
     texto = ""
-    for bit in data:
+    for bit in data2:
         codigo += bit
         if codigo in dendograma_inverso:
             texto += dendograma_inverso[codigo]
             codigo = ""
+
+    print(texto[(len(texto))-50:len(texto)])
 
     floats = [float(x) for x in texto.split()]
 
@@ -164,15 +174,24 @@ def huffmann (tira):
     dendograma = sorted(heapq.heappop(dendograma)[1:])
     dendograma = {simbolo : codigo for simbolo, codigo in dendograma} 
 
-    #tira_codificada = ""
-    tira_codificada = [] 
+    #tira_codificada = []
+    tira_codificada = "" 
     for valor in tira:
         #tira_codificada = np.r_[tira_codificada, [dendograma[valor]]]
         tira_codificada += dendograma[valor]
+    print(tira[0:50])
+    print(tira_codificada[0:50])
 
-    dendograma_byte = dendograma
+    b = bytearray()
 
-    return dendograma_byte, tira_codificada
+    while((len(tira_codificada)%8)!=0): #PADDING
+        tira_codificada+='0'
+
+    for i in range(0, len(tira_codificada), 8): # Si el largo del texto no es múltiplo de 8 debemos hacer padding
+        byte = tira_codificada[i:i+8]
+        b.append(int(byte, 2))
+
+    return dendograma, b
 
 def create_mask(dims, frequency, size=10):
     freq_int = int(frequency*dims[0])
