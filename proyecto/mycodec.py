@@ -6,18 +6,19 @@ from collections import Counter
 import heapq
 import json
 import sys
+import pickle
 
 
 Q = np.array([[16, 11, 10, 16, 24, 40, 51, 61],
-            [12, 12, 14, 19, 26, 58, 60, 55],
-            [14, 13, 16, 24, 40, 57, 69, 56],
-            [14, 17, 22, 29, 51, 87, 80, 62],
-            [18, 22, 37, 56, 68, 109, 103, 77],
-            [24, 35, 55, 64, 81, 104, 113, 92],
-            [49, 64, 78, 87, 103, 121, 120, 101],
-            [72, 92, 95, 98, 112, 100, 103, 99]])
+              [12, 12, 14, 19, 26, 58, 60, 55],
+              [14, 13, 16, 24, 40, 57, 69, 56],
+              [14, 17, 22, 29, 51, 87, 80, 62],
+              [18, 22, 37, 56, 68, 109, 103, 77],
+              [24, 35, 55, 64, 81, 104, 113, 92],
+              [49, 64, 78, 87, 103, 121, 120, 101],
+              [72, 92, 95, 98, 112, 100, 103, 99]])
 
-calidad = 20
+calidad = 80
 
 
 def denoise(frame):
@@ -77,31 +78,32 @@ def code(frame):
             tira_zigzag += zz
 
     peso = np.sum(nnz)
-    print(f"80% de calidad {peso*8/1e+6:0.3f} MB")
+    #print(f"80% de calidad {peso*8/1e+6:0.3f} MB")
 
     # Aplicamos Run Length encoding (RLE) a cada tira 
     img_rle = rle(tira_zigzag, imsize[0]*imsize[1])
 
     imh = huffmann(img_rle)
 
-    print("largo", sys.getsizeof(imh[1]))
-
-    imhs = json.dumps(imh, indent=2).encode('utf-8')
-
-    #print(type(imhs))
+    #imhs = json.dumps(imh, indent=2).encode('utf-8')
+    imhs = pickle.dumps(imh, protocol=pickle.HIGHEST_PROTOCOL)
     
+    print(type(imhs))
 
-    #print(len(imhs.encode('utf-8')))
+    print(f"Peso despues de codificar (calidad = {calidad}%) {sys.getsizeof(imhs)/1e+6:0.3f} MB")
 
     return imhs
 
 
 def decode(message):
-    dendo = json.loads(message)
+    #dendo = json.loads(message)
+    dendo = pickle.loads(message)
+    p = dendo[2]
+    #print(p)
     data = dendo[1]
     diccionario = dendo[0]
 
-    decod = dehuffman(data, diccionario)
+    decod = dehuffman(data, diccionario, p)
     
     decod2 = rle_inverso(decod)
 
@@ -123,20 +125,35 @@ def decode(message):
             decod4 = decod3 * Q_dyn
             frame[i:(i+8),j:(j+8)] = IDCT2(decod4)
             k+=64
+
+    #print(frame)
+
     return frame/255
 
-def dehuffman(data, dendograma):
-    # Decodificacion de Huffman
+def dehuffman(data, dendograma, p):
+
+
     dendograma_inverso =  {codigo: simbolo for simbolo, codigo in dendograma.items()}
+    #pasamos de bytearray a bits
+    data2 = ""
+    for k in range (0, len(data)):
+        data2 += "{0:08b}".format(data[k])
+    
+    #tenemos que eliminar lo que agregamos con el padding
+    data2 = data2[0:len(data2)-p]
+    
     codigo = ""
     texto = ""
-    for bit in data:
+    for bit in data2:
         codigo += bit
         if codigo in dendograma_inverso:
             texto += dendograma_inverso[codigo]
             codigo = ""
 
+    #print(texto[(len(texto))-50:len(texto)])
+
     floats = [float(x) for x in texto.split()]
+
     return floats
 
 
@@ -153,18 +170,29 @@ def huffmann (tira):
         for codigo in hi[1:]:
             codigo[1] = '1' + codigo[1]
         heapq.heappush(dendograma, [lo[0] + hi[0]] + lo[1:] + hi[1:])
-
     # Convertir código a diccionario
     dendograma = sorted(heapq.heappop(dendograma)[1:])
     dendograma = {simbolo : codigo for simbolo, codigo in dendograma} 
 
-    tira_codificada = [] 
-    for valor in tira:        
+    #tira_codificada = []
+    tira_codificada = "" 
+    for valor in tira:
+        #tira_codificada = np.r_[tira_codificada, [dendograma[valor]]]
         tira_codificada += dendograma[valor]
-    dendograma_byte = dendograma
-    
+    #print(tira[0:50])
+    #print(tira_codificada[0:50])
 
-    return dendograma_byte, tira_codificada
+    b = bytearray()
+    p = 0
+    while((len(tira_codificada)%8)!=0): #PADDING
+        p+=1
+        tira_codificada+='0'
+
+    for i in range(0, len(tira_codificada), 8): # Si el largo del texto no es múltiplo de 8 debemos hacer padding
+        byte = tira_codificada[i:i+8]
+        b.append(int(byte, 2))
+
+    return dendograma, b, p
 
 def create_mask(dims, frequency, size=10):
     freq_int = int(frequency*dims[0])
@@ -190,7 +218,8 @@ def rle(message, n):
         #encoded_message = np.r_[encoded_message, [count, ch]]
         encoded_message += str(count) + ' ' + str(ch) + ' '
         #encoded_message += str(count) + str(ch)
-        i = j+1    
+        i = j+1
+    
     #encoded_message = np.array(encoded_message)
     return encoded_message
 
@@ -211,6 +240,7 @@ def zigzag2(frameq):
     columns = 8
     solution=[[] for i in range(rows+columns-1)]
     solution2 = []
+
     for i in range(rows):
         for j in range(columns):
             sum=i+j
@@ -218,12 +248,15 @@ def zigzag2(frameq):
                 solution[sum].insert(0,frameq[i][j])
             else:
                 solution[sum].append(frameq[i][j])
+
     for x in solution:
-        solution2 += x   
+        solution2 += x
+    #solution2 = np.array(solution2)
 
     return solution2
 
 def inverse_zigzag(input):	
+	#----------------------------------
     h = 0
     v = 0
     vmin = 0
@@ -232,30 +265,37 @@ def inverse_zigzag(input):
     hmax = 8
     output = np.zeros((vmax, hmax))
     i = 0
-    while ((v < vmax) and (h < hmax)):           	
+    #----------------------------------
+    while ((v < vmax) and (h < hmax)): 
+        #print ('v:',v,', h:',h,', i:',i)   	
         if ((h + v) % 2) == 0:                 # going up            
-            if (v == vmin):                             
+            if (v == vmin):
+                #print(1)                
                 output[v, h] = input[i]        # if we got to the first line
                 if (h == hmax):
                     v = v + 1
                 else:
                     h = h + 1                        
                 i = i + 1
-            elif ((h == hmax -1 ) and (v < vmax)):   # if we got to the last column               
+            elif ((h == hmax -1 ) and (v < vmax)):   # if we got to the last column
+                #print(2)
                 output[v, h] = input[i] 
                 v = v + 1
                 i = i + 1
-            elif ((v > vmin) and (h < hmax -1 )):    # all other cases                
+            elif ((v > vmin) and (h < hmax -1 )):    # all other cases
+                #print(3)
                 output[v, h] = input[i] 
                 v = v - 1
                 h = h + 1
                 i = i + 1
         else:                                    # going down
-            if ((v == vmax -1) and (h <= hmax -1)):       # if we got to the last line               
+            if ((v == vmax -1) and (h <= hmax -1)):       # if we got to the last line
+                #print(4)
                 output[v, h] = input[i] 
                 h = h + 1
                 i = i + 1
-            elif (h == hmin):                  # if we got to the first column               
+            elif (h == hmin):                  # if we got to the first column
+                #print(5)
                 output[v, h] = input[i] 
                 if (v == vmax -1):
                     h = h + 1
@@ -267,7 +307,8 @@ def inverse_zigzag(input):
                 v = v + 1
                 h = h - 1
                 i = i + 1
-        if ((v == vmax-1) and (h == hmax-1)):          # bottom right element       	
+        if ((v == vmax-1) and (h == hmax-1)):          # bottom right element
+            #print(7)        	
             output[v, h] = input[i] 
             break
     return output    
