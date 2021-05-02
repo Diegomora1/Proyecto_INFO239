@@ -18,7 +18,7 @@ Q = np.array([[16, 11, 10, 16, 24, 40, 51, 61],
               [49, 64, 78, 87, 103, 121, 120, 101],
               [72, 92, 95, 98, 112, 100, 103, 99]])
 
-calidad = 80
+calidad = 20
 
 
 def denoise(frame):
@@ -77,7 +77,7 @@ def code(frame):
             zz = zigzag2 (quant)
             tira_zigzag += zz
 
-    peso = np.sum(nnz)
+    #peso = np.sum(nnz)
     #print(f"80% de calidad {peso*8/1e+6:0.3f} MB")
 
     # Aplicamos Run Length encoding (RLE) a cada tira 
@@ -88,7 +88,7 @@ def code(frame):
     #imhs = json.dumps(imh, indent=2).encode('utf-8')
     imhs = pickle.dumps(imh, protocol=pickle.HIGHEST_PROTOCOL)
     
-    print(type(imhs))
+    #print(type(imhs))
 
     print(f"Peso despues de codificar (calidad = {calidad}%) {sys.getsizeof(imhs)/1e+6:0.3f} MB")
 
