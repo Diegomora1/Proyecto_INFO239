@@ -19,8 +19,8 @@ def getSize(input):
 while True:
     #i=i+1
     message = socket.recv()
-    #s = getSize(message)
-    #print(type(message))
+    s = getSize(message)
+    print(s)
     frame = decode(message)
     cv.imshow("Torres del paine", frame)
     cv.waitKey(10)
